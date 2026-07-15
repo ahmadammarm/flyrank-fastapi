@@ -42,7 +42,7 @@ flyrank-fastapi/
 
 1. Clone the repository and navigate into the project directory:
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/ahmadammarm/flyrank-fastapi.git
    cd flyrank-fastapi
    ```
 
@@ -58,7 +58,7 @@ flyrank-fastapi/
 
 3. Install the required dependencies:
    ```bash
-   pip install fastapi uvicorn
+   pip install -r requirements.txt
    ```
 
 ### Running the API
