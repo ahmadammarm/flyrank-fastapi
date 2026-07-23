@@ -6,7 +6,7 @@ CivicRAG is a Retrieval-Augmented Generation (RAG) application built to solve a 
 ## 🌟 Project Highlights
 
 - **AI-Powered RAG Architecture:** Integrates **Google Gemini** to deliver context-aware, highly accurate AI responses grounded strictly in ingested legal documents, preventing AI hallucinations.
-- **Microservice Design:** Engineered with **FastAPI** featuring 10+ RESTful API endpoints.
+- **Modular API Design:** Engineered a robust monolith with **FastAPI**, featuring 10+ RESTful API endpoints following strict Separation of Concerns.
 - **Robust Storage:** Utilizes **PostgreSQL** with **pgvector** and custom connection pooling for lightning-fast relational document and semantic vector storage.
 - **Containerized Deployment:** Fully containerized using **Docker** and `docker-compose` for streamlined environments.
 
