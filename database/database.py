@@ -1,37 +1,64 @@
-from typing import List, Dict, Optional
-from models.models import Task, TaskCreate, TaskUpdate
+import sqlite3
+import queue
+from typing import Generator
 
-# In-memory database
-tasks_db: Dict[int, Task] = {}
-current_id: int = 1
+DATABASE_URL = "./flyrank.db"
 
-def get_all_tasks() -> List[Task]:
-    return list(tasks_db.values())
+class SQLiteConnectionPool:
+    def __init__(self, database: str, pool_size: int = 5):
+        self.database = database
+        self.pool_size = pool_size
+        self.pool = queue.Queue(maxsize=pool_size)
+        
+        # Initialize the pool with connections
+        for _ in range(pool_size):
+            self.pool.put(self._create_connection())
 
-def get_task(task_id: int) -> Optional[Task]:
-    return tasks_db.get(task_id)
+    def _create_connection(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.database, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        return conn
 
-def create_task(task: TaskCreate) -> Task:
-    global current_id
-    new_task = Task(id=current_id, **task.model_dump())
-    tasks_db[current_id] = new_task
-    current_id += 1
-    return new_task
+    def get_connection(self) -> sqlite3.Connection:
+        try:
+            # Wait up to 5 seconds for an available connection
+            return self.pool.get(timeout=5)
+        except queue.Empty:
+            raise Exception("Database connection pool exhausted")
 
-def update_task(task_id: int, task_update: TaskUpdate) -> Optional[Task]:
-    if task_id not in tasks_db:
-        return None
-    
-    stored_task_data = tasks_db[task_id].model_dump()
-    update_data = task_update.model_dump(exclude_unset=True)
-    updated_task_data = {**stored_task_data, **update_data}
-    
-    updated_task = Task(**updated_task_data)
-    tasks_db[task_id] = updated_task
-    return updated_task
+    def release_connection(self, conn: sqlite3.Connection):
+        try:
+            self.pool.put_nowait(conn)
+        except queue.Full:
+            # If the pool is somehow full, close the extra connection
+            conn.close()
 
-def delete_task(task_id: int) -> bool:
-    if task_id in tasks_db:
-        del tasks_db[task_id]
-        return True
-    return False
+# Create a global connection pool instance
+db_pool = SQLiteConnectionPool(DATABASE_URL, pool_size=5)
+
+def init_db():
+    conn = db_pool.get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT,
+                completed BOOLEAN NOT NULL DEFAULT 0
+            )
+        ''')
+        # Add indexes for query optimization
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_tasks_title ON tasks(title)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed)')
+        conn.commit()
+    finally:
+        db_pool.release_connection(conn)
+
+# FastAPI Dependency for connection pooling
+def get_db() -> Generator:
+    conn = db_pool.get_connection()
+    try:
+        yield conn
+    finally:
+        db_pool.release_connection(conn)

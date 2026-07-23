@@ -19,3 +19,6 @@ python-dotenv==1.2.2      # Load environment variables from .env file
 
 # --- Form & File Handling ---
 python-multipart==0.0.32  # Required for form data support in FastAPI
+
+# --- Database ---
+sqlalchemy==2.0.30        # Database ORM
