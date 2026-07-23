@@ -79,5 +79,9 @@ FastAPI automatically generates interactive API documentation. Once the server i
 - **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
+### Database Screenshot
+<img width="1008" height="317" alt="image" src="https://github.com/user-attachments/assets/68caf8fa-15c4-4f09-82f1-398e7ab970d0" />
+
+
 ---
 *Developed by the Backend AI Engineering Intern at FlyRank.*
