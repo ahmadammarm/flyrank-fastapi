@@ -1,19 +1,24 @@
-from pydantic import BaseModel, Field
-from typing import Optional
+from pydantic import BaseModel
+from typing import List, Optional
 
-class TaskBase(BaseModel):
-    title: str = Field(..., title="Task Title", min_length=1)
-    description: Optional[str] = Field(None, title="Task Description")
-    completed: bool = False
+class DocumentCreate(BaseModel):
+    title: str
+    content: str
 
-class TaskCreate(TaskBase):
-    pass
-
-class TaskUpdate(TaskBase):
-    title: Optional[str] = Field(None, title="Task Title", min_length=1)
-
-class Task(TaskBase):
+class DocumentResponse(BaseModel):
     id: int
+    title: str
+    created_at: str
 
-    class Config:
-        from_attributes = True
+class ChatRequest(BaseModel):
+    session_id: Optional[int] = None
+    message: str
+
+class ChatResponse(BaseModel):
+    session_id: int
+    reply: str
+
+class FeedbackRequest(BaseModel):
+    message_id: int
+    is_positive: bool
+    comments: Optional[str] = None

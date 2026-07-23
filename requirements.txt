@@ -22,3 +22,7 @@ python-multipart==0.0.32  # Required for form data support in FastAPI
 
 # --- Database ---
 sqlalchemy==2.0.30        # Database ORM
+psycopg2-binary==2.9.9    # PostgreSQL adapter
+
+# --- AI & RAG ---
+google-generativeai==0.8.4 # Google Gemini SDK

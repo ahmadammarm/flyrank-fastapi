@@ -1,75 +1,94 @@
-import sqlite3
-import queue
+import os
+import psycopg2
+from psycopg2 import pool
 from typing import Generator
+from psycopg2.extras import RealDictCursor
 
-DATABASE_URL = "./flyrank.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/civicrag")
 
-class SQLiteConnectionPool:
-    def __init__(self, database: str, pool_size: int = 5):
-        self.database = database
-        self.pool_size = pool_size
-        self.pool = queue.Queue(maxsize=pool_size)
-        
-        # Initialize the pool with connections
-        for _ in range(pool_size):
-            self.pool.put(self._create_connection())
-
-    def _create_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.database, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    def get_connection(self) -> sqlite3.Connection:
-        try:
-            # Wait up to 5 seconds for an available connection
-            return self.pool.get(timeout=5)
-        except queue.Empty:
-            raise Exception("Database connection pool exhausted")
-
-    def release_connection(self, conn: sqlite3.Connection):
-        try:
-            self.pool.put_nowait(conn)
-        except queue.Full:
-            # If the pool is somehow full, close the extra connection
-            conn.close()
-
-# Create a global connection pool instance
-db_pool = SQLiteConnectionPool(DATABASE_URL, pool_size=5)
+try:
+    db_pool = psycopg2.pool.SimpleConnectionPool(1, 10, DATABASE_URL)
+except Exception as e:
+    print("Database connection failed. Ensure PostgreSQL is running.")
+    db_pool = None
 
 def init_db():
-    conn = db_pool.get_connection()
+    if not db_pool:
+        return
+    conn = db_pool.getconn()
     try:
         cursor = conn.cursor()
+        
+        # Enable pgvector extension
+        cursor.execute('CREATE EXTENSION IF NOT EXISTS vector;')
+        
+        # Documents Table
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS tasks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+            CREATE TABLE IF NOT EXISTS documents (
+                id SERIAL PRIMARY KEY,
                 title TEXT NOT NULL,
-                description TEXT,
-                completed BOOLEAN NOT NULL DEFAULT 0
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        # Add indexes for query optimization
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_tasks_title ON tasks(title)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed)')
         
-        # Insert three example tasks on first run
-        cursor.execute("SELECT COUNT(*) FROM tasks")
-        if cursor.fetchone()[0] == 0:
-            example_tasks = [
-                ("Learn FastAPI", "Study the FastAPI documentation", False),
-                ("Setup SQLite", "Configure raw queries and connection pooling", True),
-                ("Deploy to GitHub", "Push the final code to the repository", False)
-            ]
-            cursor.executemany("INSERT INTO tasks (title, description, completed) VALUES (?, ?, ?)", example_tasks)
-            
+        # Document Chunks Table with vector type (Gemini is 768 dimensions)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS document_chunks (
+                id SERIAL PRIMARY KEY,
+                document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
+                text_chunk TEXT NOT NULL,
+                embedding vector(768) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Chat Sessions Table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS chat_sessions (
+                id SERIAL PRIMARY KEY,
+                session_name TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Chat Messages Table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id SERIAL PRIMARY KEY,
+                session_id INTEGER REFERENCES chat_sessions(id) ON DELETE CASCADE,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Feedback Table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS chat_feedback (
+                id SERIAL PRIMARY KEY,
+                message_id INTEGER REFERENCES chat_messages(id) ON DELETE CASCADE,
+                is_positive BOOLEAN,
+                comments TEXT
+            )
+        ''')
+        
+        # Add index for vector similarity (HNSW index for cosine distance)
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS document_chunks_embedding_idx 
+            ON document_chunks USING hnsw (embedding vector_cosine_ops);
+        ''')
+        
         conn.commit()
     finally:
-        db_pool.release_connection(conn)
+        db_pool.putconn(conn)
 
-# FastAPI Dependency for connection pooling
 def get_db() -> Generator:
-    conn = db_pool.get_connection()
+    if not db_pool:
+        raise Exception("Database connection pool is not initialized")
+    conn = db_pool.getconn()
+    conn.cursor_factory = RealDictCursor
     try:
         yield conn
     finally:
-        db_pool.release_connection(conn)
+        db_pool.putconn(conn)

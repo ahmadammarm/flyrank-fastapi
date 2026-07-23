@@ -1,87 +1,45 @@
-# FlyRank - Task Management API
+# CivicRAG - Civic & Tenant Rights AI Assistant
 
-Welcome to the Task Management API, the inaugural project developed during the project-based virtual internship at **FlyRank**. This project is built and maintained by the Backend AI Engineering team.
+Developed as part of a Backend AI Engineering project-based internship at **FlyRank**. 
+CivicRAG is a Retrieval-Augmented Generation (RAG) application built to solve a pressing society problem: **making complex civic laws and tenant rights accessible and understandable for everyday citizens.**
 
-## Overview
+## 🌟 Project Highlights
 
-This project is a high-performance RESTful API built with **FastAPI** that manages a simple To-Do list. It demonstrates the fundamental concepts of backend development by providing the four standard CRUD operations (Create, Read, Update, Delete) utilizing a robust SQLite database with highly optimized raw SQL queries and custom connection pooling. 
+- **AI-Powered RAG Architecture:** Integrates **Google Gemini** to deliver context-aware, highly accurate AI responses grounded strictly in ingested legal documents, preventing AI hallucinations.
+- **Microservice Design:** Engineered with **FastAPI** featuring 10+ RESTful API endpoints.
+- **Robust Storage:** Utilizes **PostgreSQL** with **pgvector** and custom connection pooling for lightning-fast relational document and semantic vector storage.
+- **Containerized Deployment:** Fully containerized using **Docker** and `docker-compose` for streamlined environments.
 
-## Features
+## 🏗️ Core Backend Modules
 
-- **Create**: Add new tasks with a title and an optional description.
-- **Read**: Retrieve all available tasks or fetch a specific task by its unique ID.
-  - **Search & Sort Filtering**: The GET `/tasks` endpoint supports dynamic query parameters. You can search tasks using `?search=keyword` (matches title or description) and sort them via `?sort_by=title&sort_order=desc` (supports sorting by `id`, `title`, or `completed`).
-- **Update**: Modify existing tasks (e.g., mark as completed, update the title or description).
-- **Delete**: Remove tasks from the system.
-- **Raw SQLite with Connection Pooling**: Designed for raw speed and control. Features a custom native Python `queue.Queue` connection pool and completely mitigates SQL injection using parameterized queries (`?`) and strict whitelisting. Database indexes are initialized automatically on startup for maximum read performance.
+The backend follows modular software architecture principles, broken down into 4 core pipelines:
+1. **Document Management (`document_management`)**: Handles ingestion, text extraction, and chunking of civic documents.
+2. **Retrieval Pipelines (`retrieval_pipelines`)**: Manages embeddings and semantic vector search to fetch the most relevant legal context.
+3. **LLM Orchestration (`llm_orchestration`)**: Structures prompt engineering and manages asynchronous communication with the Google Gemini API.
+4. **Conversation Workflows (`conversation_workflows`)**: Tracks session histories and manages the multi-turn chat lifecycle.
 
-## Project Structure (Clean Architecture)
-
-The codebase has been refactored for maintainability and separation of concerns:
-
-```
-flyrank-fastapi/
-│
-├── main.py                # Main application entrypoint and app configuration
-├── flyrank.db             # Auto-generated SQLite database file
-├── models/
-│   └── schemas.py         # Data validation schemas (Pydantic models)
-├── database/
-│   └── database.py        # Custom SQLite connection pooling and initialization logic
-└── routes/
-    └── routes.py          # API endpoints executing secure raw SQL operations
-```
-
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
+- Docker & Docker Compose
+- Google Gemini API Key
 
-- Python 3.8 or higher
-- FastAPI
-- Uvicorn
-
-### Installation
-
-1. Clone the repository and navigate into the project directory:
-   ```bash
-   git clone https://github.com/ahmadammarm/flyrank-fastapi.git
-   cd flyrank-fastapi
-   ```
-
-2. Set up a virtual environment (recommended):
-   ```bash
-   python -m venv .venv
-   
-   # On Windows
-   .venv\Scripts\activate
-   # On macOS/Linux
-   source .venv/bin/activate
-   ```
-
-3. Install the required dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### Running the API
-
-Start the local development server:
-
-```bash
-uvicorn main:app --reload
+### 1. Environment Setup
+Create a `.env` file in the root directory and add your API key:
+```env
+GEMINI_API_KEY=your_google_gemini_key_here
 ```
-The API will be available at `http://localhost:8000`. The `flyrank.db` file alongside optimized indexes will be automatically generated upon startup.
 
-### Interactive Documentation (Swagger UI)
+### 2. Run with Docker
+Spin up the entire RAG pipeline with a single command:
+```bash
+docker-compose up --build
+```
+The API will be available at `http://localhost:8000`.
 
-FastAPI automatically generates interactive API documentation. Once the server is running, you can visually test all the endpoints directly from your browser:
-
+### 3. API Documentation
+Explore and test the 10+ endpoints dynamically via Swagger UI:
 - **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
-
-### Database Screenshot
-<img width="1008" height="317" alt="image" src="https://github.com/user-attachments/assets/68caf8fa-15c4-4f09-82f1-398e7ab970d0" />
-
 
 ---
 *Developed by the Backend AI Engineering Intern at FlyRank.*
