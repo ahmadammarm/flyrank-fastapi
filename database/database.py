@@ -51,6 +51,17 @@ def init_db():
         # Add indexes for query optimization
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_tasks_title ON tasks(title)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed)')
+        
+        # Insert three example tasks on first run
+        cursor.execute("SELECT COUNT(*) FROM tasks")
+        if cursor.fetchone()[0] == 0:
+            example_tasks = [
+                ("Learn FastAPI", "Study the FastAPI documentation", False),
+                ("Setup SQLite", "Configure raw queries and connection pooling", True),
+                ("Deploy to GitHub", "Push the final code to the repository", False)
+            ]
+            cursor.executemany("INSERT INTO tasks (title, description, completed) VALUES (?, ?, ?)", example_tasks)
+            
         conn.commit()
     finally:
         db_pool.release_connection(conn)
