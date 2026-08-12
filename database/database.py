@@ -1,75 +1,70 @@
-import sqlite3
-import queue
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from typing import Generator
+from dotenv import load_dotenv
 
-DATABASE_URL = "./flyrank.db"
+load_dotenv()
 
-class SQLiteConnectionPool:
-    def __init__(self, database: str, pool_size: int = 5):
-        self.database = database
-        self.pool_size = pool_size
-        self.pool = queue.Queue(maxsize=pool_size)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@db:5432/flyrank")
+
+class PostgresCursorWrapper:
+    """
+    A wrapper to translate SQLite syntax/behavior to PostgreSQL
+    so that the routes/service layer does not need to change.
+    """
+    def __init__(self, pg_cursor):
+        self.pg_cursor = pg_cursor
+        self.lastrowid = None
+
+    def execute(self, query, params=()):
+        # Translate SQLite '?' to Postgres '%s'
+        pg_query = query.replace('?', '%s')
         
-        # Initialize the pool with connections
-        for _ in range(pool_size):
-            self.pool.put(self._create_connection())
+        # Handle SQLite's lastrowid for INSERTs
+        is_insert = pg_query.strip().upper().startswith("INSERT")
+        if is_insert and "RETURNING" not in pg_query:
+            pg_query += " RETURNING id"
+            
+        self.pg_cursor.execute(pg_query, params)
+        
+        if is_insert:
+            row = self.pg_cursor.fetchone()
+            if row:
+                self.lastrowid = row['id']
+                
+    def fetchone(self):
+        return self.pg_cursor.fetchone()
+        
+    def fetchall(self):
+        return self.pg_cursor.fetchall()
 
-    def _create_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.database, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    def get_connection(self) -> sqlite3.Connection:
-        try:
-            # Wait up to 5 seconds for an available connection
-            return self.pool.get(timeout=5)
-        except queue.Empty:
-            raise Exception("Database connection pool exhausted")
-
-    def release_connection(self, conn: sqlite3.Connection):
-        try:
-            self.pool.put_nowait(conn)
-        except queue.Full:
-            # If the pool is somehow full, close the extra connection
-            conn.close()
-
-# Create a global connection pool instance
-db_pool = SQLiteConnectionPool(DATABASE_URL, pool_size=5)
+class PostgresConnectionWrapper:
+    """
+    Mocks the sqlite3.Connection interface.
+    """
+    def __init__(self, pg_conn):
+        self.pg_conn = pg_conn
+        
+    def cursor(self):
+        # RealDictCursor allows dict(row) to work just like sqlite3.Row
+        return PostgresCursorWrapper(self.pg_conn.cursor(cursor_factory=RealDictCursor))
+        
+    def commit(self):
+        self.pg_conn.commit()
+        
+    def close(self):
+        self.pg_conn.close()
 
 def init_db():
-    conn = db_pool.get_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS tasks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                description TEXT,
-                completed BOOLEAN NOT NULL DEFAULT 0
-            )
-        ''')
-        # Add indexes for query optimization
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_tasks_title ON tasks(title)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed)')
-        
-        # Insert three example tasks on first run
-        cursor.execute("SELECT COUNT(*) FROM tasks")
-        if cursor.fetchone()[0] == 0:
-            example_tasks = [
-                ("Learn FastAPI", "Study the FastAPI documentation", False),
-                ("Setup SQLite", "Configure raw queries and connection pooling", True),
-                ("Deploy to GitHub", "Push the final code to the repository", False)
-            ]
-            cursor.executemany("INSERT INTO tasks (title, description, completed) VALUES (?, ?, ?)", example_tasks)
-            
-        conn.commit()
-    finally:
-        db_pool.release_connection(conn)
+    # Database is now initialized via docker-compose (init.sql)
+    # We leave this function here so main.py doesn't break
+    pass
 
-# FastAPI Dependency for connection pooling
 def get_db() -> Generator:
-    conn = db_pool.get_connection()
+    conn = psycopg2.connect(DATABASE_URL)
+    wrapper = PostgresConnectionWrapper(conn)
     try:
-        yield conn
+        yield wrapper
     finally:
-        db_pool.release_connection(conn)
+        conn.close()

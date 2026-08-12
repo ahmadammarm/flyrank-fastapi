@@ -22,3 +22,4 @@ python-multipart==0.0.32  # Required for form data support in FastAPI
 
 # --- Database ---
 sqlalchemy==2.0.30        # Database ORM
+psycopg2-binary==2.9.9    # Postgres driver

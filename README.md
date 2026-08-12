@@ -4,8 +4,7 @@ Welcome to the Task Management API, the inaugural project developed during the p
 
 ## Overview
 
-This project is a high-performance RESTful API built with **FastAPI** that manages a simple To-Do list. It demonstrates the fundamental concepts of backend development by providing the four standard CRUD operations (Create, Read, Update, Delete) utilizing a robust SQLite database with highly optimized raw SQL queries and custom connection pooling. 
-
+This project is a high-performance RESTful API built with **FastAPI** that manages a simple To-Do list. It demonstrates the fundamental concepts of backend development by providing the four standard CRUD operations (Create, Read, Update, Delete) utilizing a robust **PostgreSQL** database running in Docker.
 ## Features
 
 - **Create**: Add new tasks with a title and an optional description.
@@ -13,8 +12,7 @@ This project is a high-performance RESTful API built with **FastAPI** that manag
   - **Search & Sort Filtering**: The GET `/tasks` endpoint supports dynamic query parameters. You can search tasks using `?search=keyword` (matches title or description) and sort them via `?sort_by=title&sort_order=desc` (supports sorting by `id`, `title`, or `completed`).
 - **Update**: Modify existing tasks (e.g., mark as completed, update the title or description).
 - **Delete**: Remove tasks from the system.
-- **Raw SQLite with Connection Pooling**: Designed for raw speed and control. Features a custom native Python `queue.Queue` connection pool and completely mitigates SQL injection using parameterized queries (`?`) and strict whitelisting. Database indexes are initialized automatically on startup for maximum read performance.
-
+- **Dockerized PostgreSQL**: Designed for production-readiness. The application and database are orchestrated using Docker Compose. A Postgres repository seamlessly replaced the in-memory/SQLite one. **Crucially, the service and routes remained completely unchanged**—proving the effectiveness of the architecture. Database initialization and indexing are handled automatically on startup.
 ## Project Structure (Clean Architecture)
 
 The codebase has been refactored for maintainability and separation of concerns:
@@ -23,11 +21,14 @@ The codebase has been refactored for maintainability and separation of concerns:
 flyrank-fastapi/
 │
 ├── main.py                # Main application entrypoint and app configuration
-├── flyrank.db             # Auto-generated SQLite database file
+├── docker-compose.yml     # Docker orchestration for app and PostgreSQL
+├── Dockerfile             # Container definition for the FastAPI app
+├── .env.example           # Example environment variables (gitignored .env used for connection strings)
 ├── models/
 │   └── schemas.py         # Data validation schemas (Pydantic models)
 ├── database/
-│   └── database.py        # Custom SQLite connection pooling and initialization logic
+│   ├── database.py        # Database connection pool and SQLite-to-Postgres wrapper
+│   └── init.sql           # SQL script to initialize tables on Docker volume creation
 └── routes/
     └── routes.py          # API endpoints executing secure raw SQL operations
 ```
@@ -36,9 +37,8 @@ flyrank-fastapi/
 
 ### Prerequisites
 
-- Python 3.8 or higher
-- FastAPI
-- Uvicorn
+- Docker and Docker Compose
+- Git
 
 ### Installation
 
@@ -58,19 +58,30 @@ flyrank-fastapi/
    source .venv/bin/activate
    ```
 
-3. Install the required dependencies:
+3. Create your local environment variables:
    ```bash
-   pip install -r requirements.txt
+   cp .env.example .env
    ```
 
-### Running the API
+### Running the Stack
 
-Start the local development server:
+Start the local development server and database using Docker Compose:
 
 ```bash
-uvicorn main:app --reload
+docker compose up -d
 ```
-The API will be available at `http://localhost:8000`. The `flyrank.db` file alongside optimized indexes will be automatically generated upon startup.
+
+The API will be available at `http://localhost:8000`. The PostgreSQL database will run on port `5432` with a persistent volume.
+
+### Architecture & Persistence Proof
+
+- **Architecture Proof**: The underlying database was successfully migrated from an in-memory/SQLite implementation to a fully Dockerized PostgreSQL instance. To achieve this, the `database.py` file was updated with a psycopg2 connection wrapper that translates SQLite syntax (`?`) to Postgres (`%s`) and handles returning inserted IDs. As required, **the service and routes remained entirely unchanged**, proving that the architecture effectively isolates the data storage implementation.
+- **Persistence Proof**: Data persistence is guaranteed via a Docker volume (`pgdata`). This was proven by:
+  1. Running `docker compose up -d`.
+  2. Creating new tasks via the API (`POST /tasks`).
+  3. Stopping and removing the containers using `docker compose down`.
+  4. Restarting the stack with `docker compose up -d`.
+  5. Fetching the tasks (`GET /tasks`) to confirm the created rows were still intact.
 
 ### Interactive Documentation (Swagger UI)
 
