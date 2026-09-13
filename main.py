@@ -2,8 +2,9 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from routes.routes import router as task_router
+from routes.auth import router as auth_router
+from routes.protected import router as protected_router, public_router
 from database.database import init_db
-
 # Create database tables and indexes on startup
 init_db()
 
@@ -21,6 +22,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 app.include_router(task_router)
+app.include_router(auth_router)
+app.include_router(protected_router)
+app.include_router(public_router)
 
 @app.get("/")
 async def root():

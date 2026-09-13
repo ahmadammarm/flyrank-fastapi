@@ -17,3 +17,7 @@ class Task(TaskBase):
 
     class Config:
         from_attributes = True
+
+class UserCredentials(BaseModel):
+    email: str
+    password: str
